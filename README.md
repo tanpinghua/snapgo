@@ -29,17 +29,40 @@ sudo apt install ./snapgo_*_amd64.deb
 
 Packages are built on Ubuntu 24.04 and install on that release or newer.
 
-Then give it a hotkey: *Settings → Keyboard → View and Customise Shortcuts →
-Custom Shortcuts*, add one with the command `snapgo`.
-
 The first capture shows GNOME's one-time "Allow snapgo to take screenshots?"
-prompt.
+prompt. Then give it a hotkey, as described next.
+
+### Use the Print Screen key
+
+GNOME uses <kbd>Print Screen</kbd> for its own screenshot tool, so free the key
+first, then give it to snapgo. Open *Settings → Keyboard → View and Customise
+Shortcuts*, then:
+
+1. Under **Screenshots**, click *Take a screenshot interactively* and press
+   <kbd>Backspace</kbd> to disable it.
+2. Under **Custom Shortcuts**, press **+** and fill in:
+   - Name: `snapgo`
+   - Command: `snapgo`
+   - Shortcut: press <kbd>Print Screen</kbd>
+
+Any other key combination works the same way; only step 2 is needed if the key
+is not already in use.
+
+To undo it, delete the custom shortcut and click *Reset* on *Take a screenshot
+interactively*.
 
 ### From source
 
 ```sh
 sudo apt install libgtk-4-dev          # build dependency
 ./install.sh --shortcut '<Shift><Super>s'
+```
+
+To use <kbd>Print Screen</kbd> here, free it from GNOME's own tool first:
+
+```sh
+gsettings set org.gnome.shell.keybindings show-screenshot-ui "[]"
+./install.sh --shortcut 'Print'
 ```
 
 This builds a release binary and installs it, the desktop file and the icon
