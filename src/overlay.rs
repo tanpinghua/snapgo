@@ -140,9 +140,10 @@ fn make_images(shot: &cairo::ImageSurface, crop: Rect) -> Option<Images> {
         cr.set_source_surface(shot, -crop.x, -crop.y).ok()?;
         cr.paint().ok()?;
     }
-    let pix = model::pixelated(&bg).ok()?;
     let texture = texture_from_surface(&mut bg)?;
-    Some(Images { bg, pix, texture })
+    // After the texture: that needed exclusive access to the pixels.
+    let blur = model::BlurCache::new(&bg);
+    Some(Images { bg, blur, texture })
 }
 
 fn install_css(display: &gdk::Display) {
@@ -1053,7 +1054,7 @@ impl Ctx {
         let st = self.state.borrow();
         let images = st.images.as_ref()?;
         let sel = st.sel.unwrap_or_else(|| st.full());
-        match model::render(&images.bg, &images.pix, &st.items, sel) {
+        match model::render(&images.bg, &images.blur, &st.items, sel) {
             Ok(s) => Some(s),
             Err(e) => {
                 eprintln!("snapgo: rendering failed: {e}");

@@ -18,7 +18,7 @@ pub const HANDLE: f64 = 4.5;
 
 pub struct Images {
     pub bg: cairo::ImageSurface,
-    pub pix: cairo::ImageSurface,
+    pub blur: crate::model::BlurCache,
     pub texture: gdk::Texture,
 }
 
@@ -168,11 +168,11 @@ mod imp {
             cr.clip();
             for (i, item) in st.items.iter().enumerate() {
                 if Some(i) != st.hidden {
-                    item.draw(&cr, &images.pix);
+                    item.draw(&cr, &images.blur);
                 }
             }
             if let Some(draft) = &st.draft {
-                draft.draw(&cr, &images.pix);
+                draft.draw(&cr, &images.blur);
             }
             let _ = cr.restore();
 

@@ -95,14 +95,13 @@ pub fn draw(cr: &Context, icon: Icon) {
             let _ = cr.stroke();
         }
         Icon::Tool(Tool::Blur) => {
-            for row in 0..4 {
-                for col in 0..4 {
-                    let alpha = if (row + col) % 2 == 0 { 0.95 } else { 0.35 };
-                    cr.set_source_rgba(0.93, 0.93, 0.93, alpha);
-                    cr.rectangle(3.0 + col as f64 * 3.5, 3.0 + row as f64 * 3.5, 3.5, 3.5);
-                    let _ = cr.fill();
-                }
-            }
+            // A droplet, the usual symbol for blur.
+            cr.move_to(10.0, 2.5);
+            cr.curve_to(10.0, 2.5, 4.5, 8.5, 4.5, 12.0);
+            cr.arc_negative(10.0, 12.0, 5.5, PI, 0.0);
+            cr.curve_to(15.5, 8.5, 10.0, 2.5, 10.0, 2.5);
+            cr.close_path();
+            let _ = cr.fill();
         }
         Icon::Undo | Icon::Redo => {
             if icon == Icon::Redo {

@@ -6,10 +6,13 @@
 
 use gtk4::cairo::{self, Context, Format, ImageSurface};
 use gtk4::pango;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::f64::consts::PI;
 
-/// Pixelation block size (image pixels) used by the blur tool.
-pub const BLOCK: f64 = 12.0;
+/// Blur strength (Gaussian sigma, image pixels) per pixel of item width, so
+/// the blur tool follows the size setting like every other tool.
+pub const BLUR_PER_WIDTH: f64 = 2.0;
 
 pub type Color = (f64, f64, f64);
 
@@ -124,7 +127,7 @@ impl Tool {
             Tool::Marker => ("Highlighter", 'h'),
             Tool::Text => ("Text", 't'),
             Tool::Number => ("Numbered marker", 'n'),
-            Tool::Blur => ("Pixelate", 'b'),
+            Tool::Blur => ("Blur", 'b'),
         }
     }
 }
@@ -227,9 +230,9 @@ fn path(cr: &Context, pts: &[Pt]) {
 }
 
 impl Item {
-    /// Draw onto `cr` (image coordinates). `pix` is the pre-pixelated copy of
-    /// the screenshot, downscaled by [`BLOCK`].
-    pub fn draw(&self, cr: &Context, pix: &ImageSurface) {
+    /// Draw onto `cr` (image coordinates). `blur` supplies blurred copies of
+    /// the screenshot for the blur tool.
+    pub fn draw(&self, cr: &Context, blur: &BlurCache) {
         let _ = cr.save();
         let (r, g, b) = self.color;
         cr.set_source_rgb(r, g, b);
@@ -291,10 +294,13 @@ impl Item {
                 let r = Rect::from_points(*a, *b);
                 cr.rectangle(r.x, r.y, r.w, r.h);
                 cr.clip();
-                cr.scale(BLOCK, BLOCK);
-                let _ = cr.set_source_surface(pix, 0.0, 0.0);
-                cr.source().set_filter(cairo::Filter::Nearest);
-                let _ = cr.paint();
+                if let Some((soft, scale)) = blur.get(self.width * BLUR_PER_WIDTH) {
+                    cr.scale(scale, scale);
+                    let _ = cr.set_source_surface(&soft, 0.0, 0.0);
+                    cr.source().set_filter(cairo::Filter::Bilinear);
+                    cr.source().set_extend(cairo::Extend::Pad);
+                    let _ = cr.paint();
+                }
             }
         }
         let _ = cr.restore();
@@ -394,23 +400,104 @@ fn hit_path(pts: &[Pt], p: Pt, reach: f64) -> bool {
     }
 }
 
-/// Build the downscaled copy of `bg` that the blur tool paints from.
-pub fn pixelated(bg: &ImageSurface) -> Result<ImageSurface, cairo::Error> {
-    let w = (bg.width() as f64 / BLOCK).ceil().max(1.0) as i32;
-    let h = (bg.height() as f64 / BLOCK).ceil().max(1.0) as i32;
-    let pix = ImageSurface::create(Format::ARgb32, w, h)?;
-    let cr = Context::new(&pix)?;
-    cr.scale(1.0 / BLOCK, 1.0 / BLOCK);
-    cr.set_source_surface(bg, 0.0, 0.0)?;
-    cr.source().set_filter(cairo::Filter::Good);
-    cr.paint()?;
-    Ok(pix)
+/// Blurred copies of the screenshot, made on demand and kept per strength.
+pub struct BlurCache {
+    bg: ImageSurface,
+    cache: RefCell<HashMap<u32, Option<(ImageSurface, f64)>>>,
+}
+
+impl BlurCache {
+    pub fn new(bg: &ImageSurface) -> Self {
+        Self {
+            bg: bg.clone(),
+            cache: RefCell::new(HashMap::new()),
+        }
+    }
+
+    /// The screenshot blurred with roughly the given Gaussian `sigma` (image
+    /// pixels), as a reduced-size surface plus the factor to scale it back up.
+    pub fn get(&self, sigma: f64) -> Option<(ImageSurface, f64)> {
+        let key = sigma.round().max(1.0) as u32;
+        self.cache
+            .borrow_mut()
+            .entry(key)
+            .or_insert_with(|| blurred(&self.bg, key as f64).ok())
+            .clone()
+    }
+}
+
+/// Blur `bg`: shrink it, run three box-blur passes (which approximate a
+/// Gaussian) on the small copy, and let the caller scale it back up smoothly.
+/// Working on the small copy keeps this fast even for 4K screenshots.
+fn blurred(bg: &ImageSurface, sigma: f64) -> Result<(ImageSurface, f64), cairo::Error> {
+    // At least 2: quarter the pixels to blur, even for the lightest setting.
+    let scale = (sigma / 2.0).round().clamp(2.0, 8.0);
+    let w = (bg.width() as f64 / scale).ceil().max(1.0) as i32;
+    let h = (bg.height() as f64 / scale).ceil().max(1.0) as i32;
+    let mut small = ImageSurface::create(Format::Rgb24, w, h)?;
+    {
+        let cr = Context::new(&small)?;
+        cr.scale(1.0 / scale, 1.0 / scale);
+        cr.set_source_surface(bg, 0.0, 0.0)?;
+        cr.source().set_filter(cairo::Filter::Good);
+        cr.source().set_extend(cairo::Extend::Pad);
+        cr.paint()?;
+    }
+    small.flush();
+    // Three passes of a box of width 2r+1 give sigma^2 = r(r+1).
+    let s = sigma / scale;
+    let radius = ((-1.0 + (1.0 + 4.0 * s * s).sqrt()) / 2.0).round().max(1.0) as usize;
+    let stride = small.stride() as usize;
+    {
+        let mut data = small.data().map_err(|_| cairo::Error::SurfaceFinished)?;
+        for _ in 0..3 {
+            box_blur(&mut data, w as usize, h as usize, stride, radius);
+        }
+    }
+    small.mark_dirty();
+    Ok((small, scale))
+}
+
+/// One horizontal and one vertical box-blur pass over 4-byte pixels.
+fn box_blur(data: &mut [u8], w: usize, h: usize, stride: usize, r: usize) {
+    let mut line = vec![0u8; w.max(h) * 4];
+    let mut out = vec![0u8; w.max(h) * 4];
+    for y in 0..h {
+        let row = &mut data[y * stride..y * stride + w * 4];
+        blur_line(row, &mut out[..w * 4], w, r);
+        row.copy_from_slice(&out[..w * 4]);
+    }
+    for x in 0..w {
+        for y in 0..h {
+            let o = y * stride + x * 4;
+            line[y * 4..y * 4 + 4].copy_from_slice(&data[o..o + 4]);
+        }
+        blur_line(&line[..h * 4], &mut out[..h * 4], h, r);
+        for y in 0..h {
+            let o = y * stride + x * 4;
+            data[o..o + 4].copy_from_slice(&out[y * 4..y * 4 + 4]);
+        }
+    }
+}
+
+/// Sliding-window average of `n` pixels, edges clamped.
+fn blur_line(src: &[u8], dst: &mut [u8], n: usize, r: usize) {
+    let window = (2 * r + 1) as u32;
+    let at = |i: isize, c: usize| src[(i.clamp(0, n as isize - 1) as usize) * 4 + c] as u32;
+    for c in 0..4 {
+        let mut sum: u32 = (-(r as isize)..=r as isize).map(|i| at(i, c)).sum();
+        for x in 0..n {
+            dst[x * 4 + c] = (sum / window) as u8;
+            let x = x as isize;
+            sum = sum + at(x + r as isize + 1, c) - at(x - r as isize, c);
+        }
+    }
 }
 
 /// Render the final image: the `sel` region of `bg` with all items on top.
 pub fn render(
     bg: &ImageSurface,
-    pix: &ImageSurface,
+    blur: &BlurCache,
     items: &[Item],
     sel: Rect,
 ) -> Result<ImageSurface, cairo::Error> {
@@ -424,7 +511,7 @@ pub fn render(
         cr.set_source_surface(bg, 0.0, 0.0)?;
         cr.paint()?;
         for it in items {
-            it.draw(&cr, pix);
+            it.draw(&cr, blur);
         }
     }
     out.flush();
@@ -511,7 +598,7 @@ mod tests {
                 pangocairo::functions::show_layout(&cr, &layout);
             }
         }
-        let pix = pixelated(&bg).unwrap();
+        let blur = BlurCache::new(&bg);
         let p = Pt::new;
         let shapes = vec![
             Shape::Blur { a: p(20.0, 60.0), b: p(300.0, 130.0) },
@@ -534,8 +621,21 @@ mod tests {
             })
             .collect();
 
+        // The blur tool follows the size setting: a light and a heavy one.
+        let mut items = items;
+        for (y, width) in [(140.0, 1.5), (180.0, 10.0)] {
+            items.push(Item {
+                shape: Shape::Blur {
+                    a: p(20.0, y),
+                    b: p(300.0, y + 35.0),
+                },
+                color: PALETTE[0],
+                width,
+            });
+        }
+
         let sel = Rect::new(10.0, 10.0, 620.0, 380.0);
-        let mut out = render(&bg, &pix, &items, sel).unwrap();
+        let mut out = render(&bg, &blur, &items, sel).unwrap();
         assert_eq!((out.width(), out.height()), (620, 380));
 
         // The blurred area must differ from the original, the far corner must not.
@@ -548,6 +648,7 @@ mod tests {
             let mut f = std::fs::File::create(path).unwrap();
             out.write_to_png(&mut f).unwrap();
         }
+        drop(blur); // it shares the background surface
         let bg_stride = bg.stride() as usize;
         let bg_data = bg.data().unwrap();
         let out_data = out.data().unwrap();

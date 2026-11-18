@@ -22,7 +22,7 @@ copyright = "2026, tanpinghua"
 license-file = ["LICENSE", "0"]
 extended-description = """\
 Press a hotkey, drag a region of the frozen screen, annotate it in place \
-(arrows, shapes, text, numbered markers, pixelate) and copy, save or pin \
+(arrows, shapes, text, numbered markers, blur) and copy, save or pin \
 the result. Built for GNOME on Wayland: captures through the desktop \
 screenshot portal and keeps the clipboard alive after the overlay closes."""
 section = "graphics"

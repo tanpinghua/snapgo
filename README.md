@@ -80,7 +80,7 @@ permission.
 | Save to `Pictures/Screenshots` and close | `Ctrl+S` |
 | Pin the result on screen and close | `Ctrl+P` |
 | Cancel | `Esc` |
-| Tools | `V` select · `A` arrow · `L` line · `R` rectangle · `E` ellipse · `P` pen · `H` highlighter · `T` text · `N` numbered marker · `B` pixelate |
+| Tools | `V` select · `A` arrow · `L` line · `R` rectangle · `E` ellipse · `P` pen · `H` highlighter · `T` text · `N` numbered marker · `B` blur |
 | Colour | `1`–`6` |
 | Size | mouse wheel, or `[` and `]` |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` |

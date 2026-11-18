@@ -37,7 +37,7 @@ In the overlay:
   Ctrl+P             pin the result on screen and close
   Esc                cancel
   V A L R E P H T N B   select, arrow, line, rectangle, ellipse, pen,
-                        highlighter, text, numbered marker, pixelate
+                        highlighter, text, numbered marker, blur
   1-6                colour          [ ]  or mouse wheel: size
   Ctrl+Z / Ctrl+Shift+Z   undo / redo      Delete: remove selected item
 ";

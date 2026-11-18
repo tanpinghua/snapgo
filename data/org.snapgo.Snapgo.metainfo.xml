@@ -15,7 +15,7 @@
     </p>
     <ul>
       <li>Built for GNOME on Wayland, with pixel-exact output on HiDPI screens</li>
-      <li>Arrows, lines, shapes, pen, highlighter, text, numbered markers and pixelate</li>
+      <li>Arrows, lines, shapes, pen, highlighter, text, numbered markers and blur</li>
       <li>Annotations stay editable: move, recolour, resize or delete them</li>
       <li>Pin a capture on screen, above other windows</li>
       <li>A single-key shortcut for every tool, colour and action</li>
