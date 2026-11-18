@@ -32,6 +32,7 @@ recommends = "xdg-desktop-portal-gnome, xwayland"
 assets = [
     ["target/release/snapgo", "usr/bin/", "755"],
     ["data/org.snapgo.Snapgo.desktop", "usr/share/applications/", "644"],
+    ["data/org.snapgo.Snapgo.metainfo.xml", "usr/share/metainfo/", "644"],
     ["data/icons/48x48/org.snapgo.Snapgo.png", "usr/share/icons/hicolor/48x48/apps/", "644"],
     ["data/icons/64x64/org.snapgo.Snapgo.png", "usr/share/icons/hicolor/64x64/apps/", "644"],
     ["data/icons/128x128/org.snapgo.Snapgo.png", "usr/share/icons/hicolor/128x128/apps/", "644"],

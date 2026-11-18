@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.snapgo.Snapgo</id>
+  <name>snapgo</name>
+  <summary>Capture a region of the screen and annotate it</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.tanpinghua">
+    <name>tanpinghua</name>
+  </developer>
+  <description>
+    <p>
+      Press a hotkey, drag a region of the frozen screen, annotate it in place and
+      press Enter: the image is on your clipboard.
+    </p>
+    <ul>
+      <li>Built for GNOME on Wayland, with pixel-exact output on HiDPI screens</li>
+      <li>Arrows, lines, shapes, pen, highlighter, text, numbered markers and pixelate</li>
+      <li>Annotations stay editable: move, recolour, resize or delete them</li>
+      <li>Pin a capture on screen, above other windows</li>
+      <li>A single-key shortcut for every tool, colour and action</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">org.snapgo.Snapgo.desktop</launchable>
+  <icon type="stock">org.snapgo.Snapgo</icon>
+  <url type="homepage">https://github.com/tanpinghua/snapgo</url>
+  <url type="bugtracker">https://github.com/tanpinghua/snapgo/issues</url>
+  <url type="vcs-browser">https://github.com/tanpinghua/snapgo</url>
+  <categories>
+    <category>Graphics</category>
+  </categories>
+  <keywords>
+    <keyword>screenshot</keyword>
+    <keyword>capture</keyword>
+    <keyword>annotate</keyword>
+  </keywords>
+  <provides>
+    <binary>snapgo</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-18"/>
+  </releases>
+</component>
