@@ -4,6 +4,7 @@ mod canvas;
 mod icons;
 mod model;
 mod overlay;
+mod permission;
 mod pin;
 mod portal;
 
@@ -51,6 +52,48 @@ fn debug(msg: &str) {
 fn load_png(path: &Path) -> Result<cairo::ImageSurface, String> {
     let mut file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     cairo::ImageSurface::create_from_png(&mut file).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Capture the screen and open the overlay; `finish` runs when it is all over.
+///
+/// If the capture is refused on the first try, the cause is almost always the
+/// screenshot permission, which GNOME only lets a focused app ask for: show
+/// the permission window, then try once more.
+fn capture(app: &gtk::Application, finish: Box<dyn FnOnce()>, first_try: bool) {
+    let Some(conn) = app.dbus_connection() else {
+        eprintln!("snapgo: no session bus connection");
+        finish();
+        return;
+    };
+    let app = app.clone();
+    debug("asking the portal for a screenshot");
+    portal::screenshot(&conn, move |res| {
+        debug(&format!("portal answered: {res:?}"));
+        let shot = res.and_then(|path| {
+            let shot = load_png(&path);
+            // The portal wrote this file just for us; don't leave it behind.
+            let _ = std::fs::remove_file(&path);
+            shot
+        });
+        match shot {
+            Ok(shot) => overlay::start(&app, shot, finish),
+            Err(e) if first_try => {
+                debug(&format!("capture failed ({e}); asking for permission"));
+                let app2 = app.clone();
+                permission::ask(&app, move |granted| {
+                    if granted {
+                        capture(&app2, finish, false);
+                    } else {
+                        finish();
+                    }
+                });
+            }
+            Err(e) => {
+                eprintln!("snapgo: {e}");
+                finish();
+            }
+        }
+    });
 }
 
 fn main() -> glib::ExitCode {
@@ -161,29 +204,7 @@ fn main() -> glib::ExitCode {
             return;
         }
 
-        let Some(conn) = app.dbus_connection() else {
-            eprintln!("snapgo: no session bus connection");
-            finish();
-            return;
-        };
-        let app = app.clone();
-        debug("asking the portal for a screenshot");
-        portal::screenshot(&conn, move |res| {
-            debug(&format!("portal answered: {res:?}"));
-            let shot = res.and_then(|path| {
-                let shot = load_png(&path);
-                // The portal wrote this file just for us; don't leave it behind.
-                let _ = std::fs::remove_file(&path);
-                shot
-            });
-            match shot {
-                Ok(shot) => overlay::start(&app, shot, finish),
-                Err(e) => {
-                    eprintln!("snapgo: {e}");
-                    finish();
-                }
-            }
-        });
+        capture(app, Box::new(finish), true);
     });
 
     app.run_with_args::<&str>(&[])
