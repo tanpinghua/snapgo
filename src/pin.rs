@@ -98,6 +98,8 @@ fn build(app: &gtk::Application, args: &PinArgs) -> Result<(), String> {
         .application(app)
         .decorated(false)
         .title("snapgo pin")
+        // Shown for the pin in the dock, the overview and Alt+Tab.
+        .icon_name(app.application_id().as_deref().unwrap_or("org.snapgo.Snapgo"))
         .default_width(w)
         .default_height(h)
         .child(&root)

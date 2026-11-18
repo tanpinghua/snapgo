@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 APP_ID=org.snapgo.Snapgo
 BIN_DIR="$HOME/.local/bin"
 APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor"
 SHORTCUT=""
 
 while [ $# -gt 0 ]; do
@@ -31,7 +31,11 @@ install -Dm755 target/release/snapgo "$BIN_DIR/snapgo"
 # The desktop file is what lets GNOME remember the screenshot permission.
 mkdir -p "$APP_DIR"
 sed "s|^Exec=snapgo|Exec=$BIN_DIR/snapgo|" "data/$APP_ID.desktop" > "$APP_DIR/$APP_ID.desktop"
-install -Dm644 "data/$APP_ID.svg" "$ICON_DIR/$APP_ID.svg"
+for size in 48 64 128 256 512; do
+    install -Dm644 "data/icons/${size}x${size}/$APP_ID.png" \
+        "$ICON_DIR/${size}x${size}/apps/$APP_ID.png"
+done
+gtk-update-icon-cache -q -t "$ICON_DIR" 2>/dev/null || true
 update-desktop-database "$APP_DIR" 2>/dev/null || true
 echo "Installed $BIN_DIR/snapgo"
 

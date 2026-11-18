@@ -9,3 +9,4 @@ Terminal=false
 Categories=Graphics;
 Keywords=screenshot;capture;annotate;snip;
 StartupNotify=false
+StartupWMClass=snapgo
