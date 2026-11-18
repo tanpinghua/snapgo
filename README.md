@@ -63,3 +63,7 @@ apply to that item.
 | `src/canvas.rs` | the widget that paints screenshot, selection and items |
 | `src/model.rs` | shapes, hit-testing, final rendering (unit-tested) |
 | `src/icons.rs` | toolbar icons |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

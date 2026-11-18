@@ -3,6 +3,8 @@ name = "snapgo"
 version = "0.1.0"
 edition = "2024"
 description = "A fast screenshot and annotation tool for GNOME on Wayland"
+license = "MIT"
+repository = "https://github.com/tanpinghua/snapgo"
 
 [dependencies]
 cairo-rs = { version = "0.21", features = ["png"] }
