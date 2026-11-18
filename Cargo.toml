@@ -1,0 +1,15 @@
+[package]
+name = "snapgo"
+version = "0.1.0"
+edition = "2024"
+description = "A fast screenshot and annotation tool for GNOME on Wayland"
+
+[dependencies]
+cairo-rs = { version = "0.21", features = ["png"] }
+gtk4 = { version = "0.10", features = ["v4_14"] }
+pangocairo = "0.21"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=snapgo
+GenericName=Screenshot Tool
+Comment=Capture a region of the screen and annotate it
+Exec=snapgo
+Icon=applets-screenshooter
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;capture;annotate;snip;
+StartupNotify=false
