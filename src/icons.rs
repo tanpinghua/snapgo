@@ -12,6 +12,7 @@ pub enum Icon {
     Redo,
     Save,
     Copy,
+    Pin,
     Close,
 }
 
@@ -124,6 +125,20 @@ pub fn draw(cr: &Context, icon: Icon) {
             line(cr, &[(4.0, 12.5), (4.0, 3.5), (12.5, 3.5)]);
             let _ = cr.stroke();
         }
+        Icon::Pin => {
+            // The familiar pushpin, tilted: cap, grip, flared base, needle.
+            cr.translate(10.0, 10.0);
+            cr.rotate(PI / 4.0);
+            cr.translate(-10.0, -10.0);
+            cr.rectangle(6.8, 2.4, 6.4, 2.2);
+            cr.rectangle(8.0, 4.6, 4.0, 4.4);
+            line(cr, &[(8.0, 9.0), (12.0, 9.0), (15.0, 12.6), (5.0, 12.6)]);
+            cr.close_path();
+            let _ = cr.fill();
+            cr.set_line_width(1.6);
+            line(cr, &[(10.0, 12.6), (10.0, 18.2)]);
+            let _ = cr.stroke();
+        }
         Icon::Close => {
             cr.set_line_width(2.0);
             line(cr, &[(5.0, 5.0), (15.0, 15.0)]);
@@ -132,4 +147,42 @@ pub fn draw(cr: &Context, icon: Icon) {
         }
     }
     let _ = cr.restore();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Tool;
+    use gtk4::cairo::{Format, ImageSurface};
+
+    /// Draws every icon without error. Set SNAPGO_TEST_ICONS=/some/file.png
+    /// to keep an enlarged sheet for eyeballing.
+    #[test]
+    fn all_icons_draw() {
+        let mut icons: Vec<Icon> = Tool::ALL.into_iter().map(Icon::Tool).collect();
+        icons.extend([Icon::Undo, Icon::Redo, Icon::Save, Icon::Pin, Icon::Copy, Icon::Close]);
+        let zoom = 4.0;
+        let cell = (SIZE + 10) as f64;
+        let surf = ImageSurface::create(
+            Format::Rgb24,
+            (cell * zoom) as i32 * icons.len() as i32,
+            (cell * zoom) as i32,
+        )
+        .unwrap();
+        let cr = Context::new(&surf).unwrap();
+        cr.set_source_rgb(0.12, 0.12, 0.14);
+        cr.paint().unwrap();
+        cr.scale(zoom, zoom);
+        for (i, icon) in icons.into_iter().enumerate() {
+            cr.save().unwrap();
+            cr.translate(i as f64 * cell + 5.0, 5.0);
+            draw(&cr, icon);
+            cr.restore().unwrap();
+        }
+        assert_eq!(cr.status(), Ok(()));
+        if let Ok(path) = std::env::var("SNAPGO_TEST_ICONS") {
+            let mut f = std::fs::File::create(path).unwrap();
+            surf.write_to_png(&mut f).unwrap();
+        }
+    }
 }

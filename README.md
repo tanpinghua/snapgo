@@ -39,6 +39,7 @@ prompt. The desktop file is what lets GNOME remember the answer.
 | Adjust the region | drag its handles; with the select tool, drag inside to move |
 | Copy and close | `Enter` or `Ctrl+C` |
 | Save to `Pictures/Screenshots` and close | `Ctrl+S` |
+| Pin the result on screen and close | `Ctrl+P` |
 | Cancel | `Esc` |
 | Tools | `V` select · `A` arrow · `L` line · `R` rectangle · `E` ellipse · `P` pen · `H` highlighter · `T` text · `N` numbered marker · `B` pixelate |
 | Colour | `1`–`6` |
@@ -49,6 +50,24 @@ prompt. The desktop file is what lets GNOME remember the answer.
 
 With the select tool, click an item to select it; colour and size changes then
 apply to that item.
+
+### Pinned images
+
+`Ctrl+P` (or the pin button) keeps the result on screen as a small frameless
+window, exactly where it was captured, above other windows and on every
+workspace.
+
+| Action | How |
+| --- | --- |
+| Move | drag |
+| Zoom | mouse wheel |
+| Opacity | `Ctrl` + mouse wheel |
+| Copy to the clipboard and close | `Ctrl+C` |
+| Save to `Pictures/Screenshots` and close | `Ctrl+S` |
+| Close | double-click or `Esc` |
+
+Wayland has no "always on top" for applications, so pins run through XWayland,
+where GNOME honours it. `snapgo --pin file.png` pins any image.
 
 `snapgo --image file.png` opens an existing image in the same overlay.
 `SNAPGO_DEBUG=1` prints progress messages.
@@ -61,6 +80,7 @@ apply to that item.
 | `src/portal.rs` | screen capture via xdg-desktop-portal (D-Bus) |
 | `src/overlay.rs` | overlay windows, input handling, toolbar, copy/save |
 | `src/canvas.rs` | the widget that paints screenshot, selection and items |
+| `src/pin.rs` | pinned image windows |
 | `src/model.rs` | shapes, hit-testing, final rendering (unit-tested) |
 | `src/icons.rs` | toolbar icons |
 

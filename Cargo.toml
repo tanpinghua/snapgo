@@ -8,8 +8,10 @@ repository = "https://github.com/tanpinghua/snapgo"
 
 [dependencies]
 cairo-rs = { version = "0.21", features = ["png"] }
+gdk4-x11 = "0.10"
 gtk4 = { version = "0.10", features = ["v4_14"] }
 pangocairo = "0.21"
+x11rb = "0.13"
 
 [profile.release]
 opt-level = 3

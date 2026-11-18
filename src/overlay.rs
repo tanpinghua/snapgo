@@ -72,6 +72,7 @@ impl Session {
         for c in self.ctxs.take() {
             c.release();
         }
+        crate::pin::set_pins_above(true);
         if let Some(f) = self.on_close.take() {
             f();
         }
@@ -107,6 +108,8 @@ pub struct Ctx {
     press: Cell<Pt>,
     last_click: Cell<Option<(Instant, Pt)>>,
     scroll_acc: Cell<f64>,
+    /// Top-left of this monitor in desktop coordinates (logical pixels).
+    origin: (i32, i32),
     text: RefCell<Option<TextEdit>>,
     tool_buttons: RefCell<Vec<(Tool, gtk::ToggleButton)>>,
     swatches: RefCell<Vec<gtk::DrawingArea>>,
@@ -198,6 +201,9 @@ pub fn start(app: &gtk::Application, shot: cairo::ImageSurface, on_close: impl F
         return;
     };
     install_css(&display);
+    // Pinned windows float above everything, including this overlay; tuck
+    // them underneath until it closes.
+    crate::pin::set_pins_above(false);
     let crops = monitor_crops(&display, shot.width() as f64, shot.height() as f64);
     for (i, (monitor, crop)) in crops.into_iter().enumerate() {
         match make_images(&shot, crop) {
@@ -285,6 +291,10 @@ impl Ctx {
             press: Cell::new(Pt::default()),
             last_click: Cell::new(None),
             scroll_acc: Cell::new(0.0),
+            origin: monitor.map_or((0, 0), |m| {
+                let g = m.geometry();
+                (g.x(), g.y())
+            }),
             text: RefCell::new(None),
             tool_buttons: RefCell::new(Vec::new()),
             swatches: RefCell::new(Vec::new()),
@@ -429,6 +439,10 @@ impl Ctx {
         let c = self.clone();
         let b = button(Icon::Save, "Save to Pictures/Screenshots (Ctrl+S)");
         b.connect_clicked(move |_| c.save());
+        bar.append(&b);
+        let c = self.clone();
+        let b = button(Icon::Pin, "Pin to screen (Ctrl+P)");
+        b.connect_clicked(move |_| c.pin());
         bar.append(&b);
         let c = self.clone();
         let b = button(Icon::Copy, "Copy to clipboard (Enter)");
@@ -726,7 +740,8 @@ impl Ctx {
         self.toolbar.set_visible(true);
         let tw = self.toolbar.measure(gtk::Orientation::Horizontal, -1).1 as f64;
         let th = self.toolbar.measure(gtk::Orientation::Vertical, -1).1 as f64;
-        let x = (sel.x2() * k - tw).clamp(8.0, (w - tw - 8.0).max(8.0));
+        // Centred under the selection, kept on screen.
+        let x = ((sel.x + sel.w / 2.0) * k - tw / 2.0).clamp(8.0, (w - tw - 8.0).max(8.0));
         let mut y = sel.y2() * k + 10.0;
         if y + th > h - 8.0 {
             y = sel.y * k - th - 10.0;
@@ -1009,6 +1024,7 @@ impl Ctx {
             match (ctrl, ch) {
                 (true, Some('c')) => target.copy(),
                 (true, Some('s')) => target.save(),
+                (true, Some('p')) => target.pin(),
                 (true, Some('z')) => target.undo_redo(shift),
                 (true, Some('y')) => target.undo_redo(true),
                 (true, Some('a')) => target.select_all(),
@@ -1097,6 +1113,46 @@ impl Ctx {
         });
     }
 
+    /// Close the overlay and keep the result on screen as a pinned window,
+    /// right where it was captured.
+    fn pin(&self) {
+        let Some(surf) = self.render() else {
+            return;
+        };
+        let k = self.k();
+        let (size, at) = {
+            let st = self.state.borrow();
+            let sel = st.sel.unwrap_or_else(|| st.full()).round();
+            (
+                ((sel.w * k).round() as i32, (sel.h * k).round() as i32),
+                (
+                    self.origin.0 + (sel.x * k).round() as i32,
+                    self.origin.1 + (sel.y * k).round() as i32,
+                ),
+            )
+        };
+        let guard = self.session.app.hold();
+        self.session.close();
+        glib::timeout_add_local_once(Duration::from_millis(20), move || {
+            let file = glib::user_runtime_dir().join(format!(
+                "snapgo-pin-{}-{}.png",
+                std::process::id(),
+                glib::monotonic_time()
+            ));
+            let written = std::fs::File::create(&file)
+                .map_err(|e| e.to_string())
+                .and_then(|mut f| surf.write_to_png(&mut f).map_err(|e| e.to_string()));
+            let started = written.and_then(|()| {
+                crate::pin::spawn(&file, size, at).map_err(|e| e.to_string())
+            });
+            if let Err(e) = started {
+                eprintln!("snapgo: pinning failed: {e}");
+                let _ = std::fs::remove_file(&file);
+            }
+            drop(guard);
+        });
+    }
+
     fn release(&self) {
         self.cancel_text();
         self.state.borrow_mut().images = None;
@@ -1112,7 +1168,8 @@ fn fit_text(entry: &gtk::Text, preedit: &str, px: f64) {
     entry.set_size_request((w + px * 1.2).ceil() as i32, -1);
 }
 
-fn write_png(surf: &cairo::ImageSurface) -> Result<PathBuf, String> {
+/// A fresh, unused file name in Pictures/Screenshots.
+pub fn new_screenshot_path() -> Result<PathBuf, String> {
     let dir = glib::user_special_dir(glib::UserDirectory::Pictures)
         .unwrap_or_else(glib::home_dir)
         .join("Screenshots");
@@ -1126,6 +1183,11 @@ fn write_png(surf: &cairo::ImageSurface) -> Result<PathBuf, String> {
         n += 1;
         path = dir.join(format!("snapgo-{stamp}-{n}.png"));
     }
+    Ok(path)
+}
+
+fn write_png(surf: &cairo::ImageSurface) -> Result<PathBuf, String> {
+    let path = new_screenshot_path()?;
     let mut file = std::fs::File::create(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     surf.write_to_png(&mut file)
         .map_err(|e| format!("{}: {e}", path.display()))?;

@@ -4,6 +4,7 @@ mod canvas;
 mod icons;
 mod model;
 mod overlay;
+mod pin;
 mod portal;
 
 use gtk4 as gtk;
@@ -23,6 +24,8 @@ With no options, freezes the screen and lets you select and annotate a region.
 
 Options:
       --image <PNG>  Annotate an existing image instead of capturing the screen
+      --pin <PNG>    Pin an image on screen, above other windows
+                     (optional: --size WxH, --at X,Y)
   -h, --help         Show this help
   -V, --version      Show the version
 
@@ -30,6 +33,7 @@ In the overlay:
   Drag               select a region (click: whole screen)
   Enter, Ctrl+C      copy to the clipboard and close
   Ctrl+S             save to Pictures/Screenshots and close
+  Ctrl+P             pin the result on screen and close
   Esc                cancel
   V A L R E P H T N B   select, arrow, line, rectangle, ellipse, pen,
                         highlighter, text, numbered marker, pixelate
@@ -50,7 +54,18 @@ fn load_png(path: &Path) -> Result<cairo::ImageSurface, String> {
 }
 
 fn main() -> glib::ExitCode {
+    // GTK's Vulkan renderer logs a warning on every resize; OpenGL is quiet
+    // and starts faster. An explicit GSK_RENDERER still wins.
+    if std::env::var_os("GSK_RENDERER").is_none() {
+        // SAFETY: nothing else is running yet; no other thread reads the
+        // environment at this point.
+        unsafe { std::env::set_var("GSK_RENDERER", "gl") };
+    }
+
     let mut image: Option<PathBuf> = None;
+    let mut pin: Option<(PathBuf, bool)> = None;
+    let mut size: Option<(i32, i32)> = None;
+    let mut at: Option<(i32, i32)> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -69,6 +84,28 @@ fn main() -> glib::ExitCode {
                     return glib::ExitCode::FAILURE;
                 }
             },
+            "--pin" | "--pin-temp" => match args.next() {
+                Some(p) => pin = Some((PathBuf::from(p), arg == "--pin-temp")),
+                None => {
+                    eprintln!("snapgo: {arg} needs a file");
+                    return glib::ExitCode::FAILURE;
+                }
+            },
+            "--size" | "--at" => {
+                let sep = if arg == "--size" { 'x' } else { ',' };
+                let pair = args.next().and_then(|v| {
+                    let (a, b) = v.split_once(sep)?;
+                    Some((a.trim().parse().ok()?, b.trim().parse().ok()?))
+                });
+                match (pair, arg.as_str()) {
+                    (Some(p), "--size") => size = Some(p),
+                    (Some(p), _) => at = Some(p),
+                    (None, _) => {
+                        eprintln!("snapgo: {arg} needs two numbers, like 640{sep}480");
+                        return glib::ExitCode::FAILURE;
+                    }
+                }
+            }
             other => {
                 eprintln!("snapgo: unknown option '{other}' (try --help)");
                 return glib::ExitCode::FAILURE;
@@ -79,6 +116,18 @@ fn main() -> glib::ExitCode {
     // Normally single-instance: a second launch while the first is still
     // serving the clipboard simply starts a new capture in that process.
     // --image must run in this process, since it carries an argument.
+    if let Some((file, temp)) = pin {
+        return pin::run(
+            APP_ID,
+            pin::PinArgs {
+                file,
+                temp,
+                size,
+                at,
+            },
+        );
+    }
+
     let flags = if image.is_some() {
         gio::ApplicationFlags::NON_UNIQUE
     } else {
