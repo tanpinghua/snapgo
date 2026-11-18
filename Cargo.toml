@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 description = "A fast screenshot and annotation tool for GNOME on Wayland"
 license = "MIT"
+authors = ["tanpinghua <tanpinghua@gmail.com>"]
+readme = "README.md"
 repository = "https://github.com/tanpinghua/snapgo"
 
 [dependencies]
@@ -12,6 +14,27 @@ gdk4-x11 = "0.10"
 gtk4 = { version = "0.10", features = ["v4_14"] }
 pangocairo = "0.21"
 x11rb = "0.13"
+
+# Debian package: `cargo deb` (see README, "Packaging").
+[package.metadata.deb]
+maintainer = "tanpinghua <tanpinghua@gmail.com>"
+copyright = "2026, tanpinghua"
+license-file = ["LICENSE", "0"]
+extended-description = """\
+Press a hotkey, drag a region of the frozen screen, annotate it in place \
+(arrows, shapes, text, numbered markers, pixelate) and copy, save or pin \
+the result. Built for GNOME on Wayland: captures through the desktop \
+screenshot portal and keeps the clipboard alive after the overlay closes."""
+section = "graphics"
+priority = "optional"
+depends = "$auto"
+recommends = "xdg-desktop-portal-gnome, xwayland"
+assets = [
+    ["target/release/snapgo", "usr/bin/", "755"],
+    ["data/org.snapgo.Snapgo.desktop", "usr/share/applications/", "644"],
+    ["data/org.snapgo.Snapgo.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["README.md", "usr/share/doc/snapgo/", "644"],
+]
 
 [profile.release]
 opt-level = 3

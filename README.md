@@ -18,18 +18,34 @@ Enter — the image is on your clipboard.
 
 ## Install
 
+### Ubuntu / Debian
+
+Download the latest `.deb` from the
+[releases page](https://github.com/tanpinghua/snapgo/releases), then:
+
 ```sh
-sudo apt install libgtk-4-dev          # build dependency (Ubuntu/Debian)
+sudo apt install ./snapgo_*_amd64.deb
+```
+
+Packages are built on Ubuntu 24.04 and install on that release or newer.
+
+Then give it a hotkey: *Settings → Keyboard → View and Customise Shortcuts →
+Custom Shortcuts*, add one with the command `snapgo`.
+
+The first capture shows GNOME's one-time "Allow snapgo to take screenshots?"
+prompt.
+
+### From source
+
+```sh
+sudo apt install libgtk-4-dev          # build dependency
 ./install.sh --shortcut '<Shift><Super>s'
 ```
 
-This builds a release binary, installs it to `~/.local/bin/snapgo`, installs
-the desktop file, and (with `--shortcut`) binds a GNOME keyboard shortcut.
-Leave `--shortcut` out to set one yourself in *Settings → Keyboard → Custom
-Shortcuts*.
-
-The first capture shows GNOME's one-time "Allow snapgo to take screenshots?"
-prompt. The desktop file is what lets GNOME remember the answer.
+This builds a release binary and installs it, the desktop file and the icon
+under `~/.local` (no root needed). With `--shortcut` it also binds a GNOME
+keyboard shortcut. The desktop file is what lets GNOME remember the screenshot
+permission.
 
 ## Use
 
@@ -83,6 +99,17 @@ where GNOME honours it. `snapgo --pin file.png` pins any image.
 | `src/pin.rs` | pinned image windows |
 | `src/model.rs` | shapes, hit-testing, final rendering (unit-tested) |
 | `src/icons.rs` | toolbar icons |
+
+## Packaging
+
+```sh
+cargo install cargo-deb
+cargo deb                      # writes target/debian/snapgo_<version>_amd64.deb
+```
+
+To publish a release: set `version` in `Cargo.toml`, commit, then push a
+matching tag (`git tag v0.2.0 && git push origin v0.2.0`). GitHub Actions
+builds the `.deb` and attaches it to a new GitHub Release.
 
 ## License
 
