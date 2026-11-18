@@ -218,9 +218,11 @@ fn build(app: &gtk::Application, args: &PinArgs) -> Result<(), String> {
         });
         // The window manager must have seen the window first, so ask once it
         // is mapped, and once more in case that raced.
+        let icon = Rc::new(embedded_icon());
         for delay in [30, 250] {
+            let icon = icon.clone();
             glib::timeout_add_local_once(Duration::from_millis(delay), move || {
-                if let Err(e) = x11_place(xid, at) {
+                if let Err(e) = x11_place(xid, at, &icon) {
                     eprintln!("snapgo: could not keep the pin on top: {e}");
                 }
             });
@@ -246,6 +248,35 @@ fn notify(window: &gtk::Window, title: &str, body: &str) {
 fn x11_window_id(window: &gtk::Window) -> Option<u32> {
     let surface = window.surface()?.downcast::<gdk4_x11::X11Surface>().ok()?;
     Some(surface.xid() as u32)
+}
+
+/// The snapgo logo in `_NET_WM_ICON` form (width, height, then ARGB pixels,
+/// for each size). Built into the binary so pins show it in the dock and
+/// Alt+Tab even when snapgo is run without being installed.
+fn embedded_icon() -> Vec<u32> {
+    const ICONS: [&[u8]; 2] = [
+        include_bytes!("../data/icons/48x48/org.snapgo.Snapgo.png"),
+        include_bytes!("../data/icons/128x128/org.snapgo.Snapgo.png"),
+    ];
+    let mut data = Vec::new();
+    for png in ICONS {
+        let Ok(texture) = gdk::Texture::from_bytes(&glib::Bytes::from_static(png)) else {
+            continue;
+        };
+        let mut downloader = gdk::TextureDownloader::new(&texture);
+        downloader.set_format(gdk::MemoryFormat::B8g8r8a8);
+        let (bytes, stride) = downloader.download_bytes();
+        let (w, h) = (texture.width() as usize, texture.height() as usize);
+        data.extend([w as u32, h as u32]);
+        for row in bytes.chunks(stride).take(h) {
+            data.extend(
+                row[..w * 4]
+                    .chunks_exact(4)
+                    .map(|p| u32::from_le_bytes([p[0], p[1], p[2], p[3]])),
+            );
+        }
+    }
+    data
 }
 
 /// One empty file per open pin, named `<pid>-<x11 window id>`.
@@ -327,10 +358,16 @@ impl<'c> WmState<'c> {
 }
 
 /// Keep a new pin above other windows, on every workspace, and move it to `at`.
-fn x11_place(xid: u32, at: Option<(i32, i32)>) -> X11Result<()> {
+fn x11_place(xid: u32, at: Option<(i32, i32)>, icon: &[u32]) -> X11Result<()> {
     use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, PropMode};
+    use x11rb::wrapper::ConnectionExt as _;
     let (conn, screen) = x11rb::connect(None)?;
     let wm = WmState::new(&conn, screen)?;
+    if !icon.is_empty() {
+        let property = WmState::atom(&conn, b"_NET_WM_ICON")?;
+        conn.change_property32(PropMode::REPLACE, xid, property, AtomEnum::CARDINAL, icon)?;
+    }
     wm.set(xid, true, b"_NET_WM_STATE_ABOVE", Some(b"_NET_WM_STATE_STICKY"))?;
     if let Some((x, y)) = at {
         // _NET_MOVERESIZE_WINDOW: static gravity, x and y present, from a pager
